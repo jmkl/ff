@@ -25,9 +25,10 @@ fn meta_bytes(m: (u64, i64)) -> [u8; 16] {
 }
 
 impl Db {
-    pub fn open(p: &Path) -> Result<Db> {
-        Ok(Db { db: Database::create(p)? })
-    }
+  pub fn open(p: &Path) -> Result<Db> {
+      Ok(Db { db: Database::builder().set_cache_size(32 << 20).create(p)? })
+  }
+
 
     /// Fast warm start: rebuild the in-memory index from the stored rows.
     pub fn load_volume(&self, letter: char) -> Result<Option<VolIndex>> {
