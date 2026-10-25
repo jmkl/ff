@@ -963,7 +963,7 @@ impl Drop for FFGui {
     }
 }
 
-// ───────────────────────── headless layout probe (temporary) ─────────────────────────
+// ───────────────────────── headless layout regression test ─────────────────────────
 
 #[cfg(test)]
 mod tests {
@@ -977,20 +977,11 @@ mod tests {
             sort: SortKey::Name,
             desc: false,
             generation: 0,
-            total: 3,
+            total: 0,
             truncated: false,
-            took_us: 1_234,
+            took_us: 0,
             win_start: 0,
-            rows: (0..3)
-                .map(|i| RowView {
-                    name: format!("file_{i}.txt"),
-                    kind: "txt".to_string(),
-                    size: "1.0 KB".to_string(),
-                    date: "2026-10-25 10:00".to_string(),
-                    path: format!("C:\\t\\file_{i}.txt"),
-                    dir: false,
-                })
-                .collect(),
+            rows: Vec::new(),
             pending: None,
             vis: (0, 0),
             sel: 0,
@@ -1005,71 +996,19 @@ mod tests {
         }
     }
 
+    /// egui 0.37: a `right_to_left(Align::Center)` scope placed directly against a
+    /// full-height ui vertically centers its widgets against ALL remaining space and
+    /// expands `min_rect` to match — the search box then swallowed the whole window.
+    /// Regression: the search bar must stay a single row tall.
     #[test]
-    fn probe_search_internals() {
-        let mut q = String::new();
-        egui::__run_test_ui(|ui| {
-            let fr = Frame::NONE
-                .fill(BOX)
-                .stroke(Stroke::new(1.0, BORDER))
-                .corner_radius(CornerRadius::same(6))
-                .inner_margin(Margin::symmetric(8, 7))
-                .show(ui, |ui| {
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        println!("scope max_rect: {:?}", ui.max_rect());
-                        let l = ui.label(RichText::new("🔍").size(13.0).color(MUTED));
-                        println!("label rect: {:?}", l.rect);
-                        let re = ui.allocate_response(vec2(28.0, 16.0), Sense::click());
-                        println!("toggle rect: {:?}", re.rect);
-                        println!("avail before TE: {:?}", ui.available_rect_before_wrap());
-                        let te = TextEdit::singleline(&mut q)
-                            .hint_text("Search files...")
-                            .desired_width(ui.available_width())
-                            .show(ui);
-                        println!("TE rect: {:?}", te.response.rect);
-                        println!("scope min_rect after TE: {:?}", ui.min_rect());
-                    });
-                    println!("frame content min_rect: {:?}", ui.min_rect());
-                });
-            println!("frame outer rect: {:?}", fr.response.rect);
-        });
-    }
-
-    #[test]
-    fn probe_layout() {
+    fn search_bar_stays_compact() {
         let mut app = offline_gui();
         egui::__run_test_ui(|ui| {
-            println!("== root ui max_rect: {:?}", ui.max_rect());
-            egui::CentralPanel::default()
-                .frame(Frame::NONE.fill(BG).inner_margin(Margin::same(12)))
-                .show(ui, |ui| {
-                    let mut y = ui.cursor().top();
-                    app.title_bar(ui);
-                    println!("title_bar consumed: {:?}", ui.cursor().top() - y);
-
-                    ui.add_space(10.0);
-                    y = ui.cursor().top();
-                    app.search_bar(ui);
-                    println!("search_bar consumed: {:?}", ui.cursor().top() - y);
-
-                    ui.add_space(8.0);
-                    y = ui.cursor().top();
-                    app.info_line(ui);
-                    println!("info_line consumed: {:?}", ui.cursor().top() - y);
-
-                    ui.add_space(6.0);
-                    println!("before panels available: {:?}", ui.available_rect_before_wrap());
-                    let d = Panel::right("details")
-                        .resizable(false)
-                        .exact_size(250.0)
-                        .show_separator_line(false)
-                        .frame(Frame::NONE.inner_margin(Margin { left: 10, right: 0, top: 0, bottom: 0 }))
-                        .show(ui, |ui| app.details(ui));
-                    println!("details panel rect: {:?}", d.response.rect);
-                    let c = egui::CentralPanel::default().frame(Frame::NONE).show(ui, |ui| app.results(ui));
-                    println!("results panel rect: {:?}", c.response.rect);
-                    println!("root cursor after: {:?}", ui.cursor());
-                });
+            let y0 = ui.cursor().top();
+            app.search_bar(ui);
+            let consumed = ui.cursor().top() - y0;
+            assert!(consumed <= 60.0, "search bar consumed {consumed}px - the layout blew up again");
         });
     }
+
 }
